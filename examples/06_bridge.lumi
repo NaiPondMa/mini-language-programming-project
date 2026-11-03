@@ -1,0 +1,32 @@
+-- 06_bridge.lumi : combining logic and functional programming
+-- `solve` runs a logic query and returns a LIST OF RECORDS, one per answer.
+
+fact likes(alice, pizza).
+fact likes(alice, sushi).
+fact likes(bob, pizza).
+fact likes(carol, tacos).
+
+fact price(pizza, 12).
+fact price(sushi, 20).
+fact price(tacos, 8).
+
+let answers = solve likes(alice, Food)
+print answers
+print (length answers)
+
+-- read a field with  record.Variable
+let foods = map (fn r => r.Food) answers
+print foods
+
+-- joins are just conjunctions; sums are just folds
+let meals = solve likes(Who, F), price(F, P)
+let total = fold (fn acc r => acc + r.P) 0 meals
+print total
+
+let cheap = filter (fn r => r.P < 15) meals |> map (fn r => (r.Who, r.F))
+print cheap
+
+-- atoms can be written in functional code as 'name
+let pizzaLovers = solve likes(W, pizza) |> map (fn r => r.W)
+print pizzaLovers
+print (head pizzaLovers == 'alice)

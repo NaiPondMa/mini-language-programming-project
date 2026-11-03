@@ -1,0 +1,31 @@
+-- 04_family_logic.lumi : facts, rules and queries (the logic side)
+-- Uppercase names are logic variables, lowercase names are atoms.
+
+fact parent(tom, bob).
+fact parent(tom, liz).
+fact parent(bob, ann).
+fact parent(bob, pat).
+fact parent(pat, jim).
+
+fact male(tom).
+fact male(bob).
+fact male(jim).
+fact female(liz).
+fact female(ann).
+fact female(pat).
+
+rule father(X, Y) :- parent(X, Y), male(X).
+rule mother(X, Y) :- parent(X, Y), female(X).
+rule grandparent(X, Z) :- parent(X, Y), parent(Y, Z).
+rule sibling(X, Y) :- parent(P, X), parent(P, Y), X \= Y.
+
+-- recursion in logic: an ancestor is a parent, or a parent of an ancestor
+rule ancestor(X, Y) :- parent(X, Y).
+rule ancestor(X, Y) :- parent(X, Z), ancestor(Z, Y).
+
+query parent(tom, bob)?
+query parent(liz, bob)?
+query grandparent(tom, Who)?
+query sibling(ann, S)?
+query mother(M, jim)?
+query ancestor(tom, D)?

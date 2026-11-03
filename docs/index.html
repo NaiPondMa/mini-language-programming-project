@@ -1,0 +1,644 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lumi: design document for a mini functional + logic language</title>
+<style>
+  :root {
+    --bg: #fbfaf7; --panel: #ffffff; --text: #1f2328; --muted: #5d6670;
+    --line: #e3e0d8; --accent: #3d5afe; --accent-soft: #e8ecff;
+    --code-bg: #f4f2ec; --kw: #8a3ffc; --str: #0f7b3f; --num: #b45309;
+    --com: #8b929a; --var: #c2185b; --atom: #0b6bcb; --ok: #15803d; --bad: #b91c1c;
+    --fn-node: #e8f4ff; --lg-node: #fff1e6;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #14161a; --panel: #1b1e23; --text: #e6e6e6; --muted: #9aa3ad;
+      --line: #2c3139; --accent: #8c9eff; --accent-soft: #232a45;
+      --code-bg: #20242b; --kw: #c4a7ff; --str: #7ee2a8; --num: #fbbf6b;
+      --com: #6b7480; --var: #ff8fb8; --atom: #8cc8ff; --ok: #4ade80; --bad: #f87171;
+      --fn-node: #1d2a3a; --lg-node: #33261b;
+    }
+  }
+  * { box-sizing: border-box; }
+  html { scroll-behavior: smooth; scroll-padding-top: 16px; }
+  body {
+    margin: 0; background: var(--bg); color: var(--text);
+    font: 16px/1.65 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  }
+  .layout { display: grid; grid-template-columns: 250px minmax(0, 1fr); max-width: 1180px; margin: 0 auto; }
+  nav {
+    position: sticky; top: 0; height: 100vh; overflow-y: auto;
+    padding: 32px 20px; border-right: 1px solid var(--line);
+  }
+  nav .brand { font-weight: 700; font-size: 1.25rem; margin-bottom: 4px; }
+  nav .brand span { color: var(--accent); }
+  nav .sub { color: var(--muted); font-size: .85rem; margin-bottom: 24px; }
+  nav ol { list-style: none; padding: 0; margin: 0; counter-reset: s; }
+  nav li { counter-increment: s; }
+  nav a {
+    display: block; padding: 6px 10px; border-radius: 6px; color: var(--muted);
+    text-decoration: none; font-size: .93rem;
+  }
+  nav a::before { content: counter(s) ". "; opacity: .6; }
+  nav a:hover, nav a.active { background: var(--accent-soft); color: var(--text); }
+  main { padding: 40px 48px 120px; min-width: 0; }
+  header.hero { border-bottom: 1px solid var(--line); padding-bottom: 28px; margin-bottom: 12px; }
+  header.hero h1 { font-size: 2.3rem; line-height: 1.2; margin: 0 0 10px; }
+  header.hero p { color: var(--muted); font-size: 1.1rem; margin: 0; max-width: 62ch; }
+  .tags { margin-top: 16px; display: flex; gap: 8px; flex-wrap: wrap; }
+  .tag { font-size: .8rem; padding: 3px 10px; border-radius: 999px; border: 1px solid var(--line); color: var(--muted); }
+  section { padding-top: 36px; }
+  h2 { font-size: 1.6rem; margin: 0 0 12px; }
+  h3 { font-size: 1.15rem; margin: 28px 0 8px; }
+  p, li { max-width: 72ch; }
+  a { color: var(--accent); }
+  code { font-family: "Cascadia Code", "JetBrains Mono", Consolas, monospace; font-size: .9em; }
+  :not(pre) > code { background: var(--code-bg); padding: 1px 6px; border-radius: 4px; }
+  pre {
+    background: var(--code-bg); border: 1px solid var(--line); border-radius: 10px;
+    padding: 14px 18px; overflow-x: auto; line-height: 1.5; margin: 12px 0;
+  }
+  .kw { color: var(--kw); font-weight: 600; } .str { color: var(--str); } .num { color: var(--num); }
+  .com { color: var(--com); font-style: italic; } .lv { color: var(--var); } .at { color: var(--atom); }
+  .pair { display: grid; grid-template-columns: 1.4fr 1fr; gap: 12px; align-items: stretch; }
+  .pair pre { margin: 0; }
+  .pair .out { background: transparent; border-style: dashed; color: var(--muted); }
+  .pair .label { font-size: .75rem; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); margin-bottom: 4px; }
+  .callout {
+    border-left: 4px solid var(--accent); background: var(--accent-soft);
+    padding: 12px 16px; border-radius: 0 8px 8px 0; margin: 16px 0;
+  }
+  .callout p { margin: 0; }
+  table { border-collapse: collapse; width: 100%; margin: 12px 0; font-size: .93rem; }
+  th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--line); vertical-align: top; }
+  th { color: var(--muted); font-weight: 600; font-size: .82rem; text-transform: uppercase; letter-spacing: .04em; }
+  .cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 12px; margin: 16px 0; }
+  .card { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 14px 16px; }
+  .card h4 { margin: 0 0 4px; font-size: 1rem; }
+  .card .file { font-family: Consolas, monospace; font-size: .8rem; color: var(--accent); }
+  .card p { margin: 6px 0 0; font-size: .9rem; color: var(--muted); }
+  figure { margin: 18px 0; }
+  figure svg { width: 100%; height: auto; display: block; }
+  figcaption { color: var(--muted); font-size: .88rem; margin-top: 6px; }
+  .diagram text { font-family: system-ui, sans-serif; fill: var(--text); }
+  .diagram .box { fill: var(--panel); stroke: var(--line); stroke-width: 1.5; }
+  .diagram .fnbox { fill: var(--fn-node); stroke: var(--accent); stroke-width: 1.5; }
+  .diagram .lgbox { fill: var(--lg-node); stroke: var(--num); stroke-width: 1.5; }
+  .diagram .edge { stroke: var(--muted); stroke-width: 1.5; fill: none; }
+  .diagram .small { font-size: 12px; fill: var(--muted); }
+  .diagram .mono { font-family: Consolas, monospace; font-size: 13px; }
+  .diagram .ok { fill: var(--ok); font-weight: 700; } .diagram .bad { fill: var(--bad); font-weight: 700; }
+  .ok { color: var(--ok); font-weight: 600; } .bad { color: var(--bad); font-weight: 600; }
+  .owner { display: inline-block; min-width: 90px; border-bottom: 1px dashed var(--muted); color: var(--muted); font-size: .85rem; }
+  .lvl { font-size: .75rem; padding: 2px 8px; border-radius: 999px; white-space: nowrap; }
+  .lvl.e { background: #dcfce7; color: #166534; } .lvl.m { background: #fef3c7; color: #92400e; } .lvl.h { background: #fee2e2; color: #991b1b; }
+  dl.gloss dt { font-weight: 700; margin-top: 12px; }
+  dl.gloss dd { margin: 2px 0 0 0; color: var(--muted); max-width: 72ch; }
+  @media (max-width: 860px) {
+    .layout { grid-template-columns: 1fr; }
+    nav { position: static; height: auto; border-right: none; border-bottom: 1px solid var(--line); }
+    main { padding: 24px 18px 80px; }
+    .pair { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+<div class="layout">
+  <nav>
+    <div class="brand"><span>λ</span> Lumi</div>
+    <div class="sub">Design doc · v0.1</div>
+    <ol id="toc">
+      <li><a href="#idea">The idea</a></li>
+      <li><a href="#tour">Language tour</a></li>
+      <li><a href="#architecture">Architecture</a></li>
+      <li><a href="#grammar">Grammar</a></li>
+      <li><a href="#inside">How it works inside</a></li>
+      <li><a href="#running">Running it</a></li>
+      <li><a href="#roadmap">Roadmap &amp; team tasks</a></li>
+      <li><a href="#glossary">Glossary</a></li>
+    </ol>
+  </nav>
+
+  <main>
+    <header class="hero">
+      <h1>Lumi: our own mini programming language</h1>
+      <p>One small language with a <strong>functional core</strong> (like OCaml or Haskell) and a
+        <strong>logic engine</strong> (like Prolog). The two halves can pass data to each other.
+        We built it to understand from the inside how the ideas from our Logic &amp; Functional
+        Programming class actually work.</p>
+      <div class="tags">
+        <span class="tag">Python 3.10+</span><span class="tag">No dependencies</span>
+        <span class="tag">Tree-walking interpreter</span><span class="tag">63 tests</span>
+      </div>
+    </header>
+
+    <!-- ============================================================ 1 -->
+    <section id="idea">
+      <h2>1. The idea</h2>
+      <p>The best way to understand a programming language is to build one. Lumi is small enough
+        to read in an afternoon (about 2,000 lines of well-commented Python), but it covers every big idea from
+        the course:</p>
+      <table>
+        <thead><tr><th>Course topic</th><th>Where you see it in Lumi</th><th>Code</th></tr></thead>
+        <tbody>
+          <tr><td>Lambda calculus, first-class functions</td><td><code>fn x =&gt; …</code>, closures, currying</td><td><code>evaluator.py</code></td></tr>
+          <tr><td>Recursion &amp; tail calls</td><td><code>let rec</code>, with the tail-call loop in the evaluator</td><td><code>evaluator.py</code></td></tr>
+          <tr><td>Algebraic data &amp; pattern matching</td><td><code>match xs with | [] -&gt; … | h :: t -&gt; …</code></td><td><code>match_pattern()</code></td></tr>
+          <tr><td>Higher-order functions</td><td><code>map</code>, <code>filter</code>, <code>fold</code>, <code>|&gt;</code></td><td><code>builtins.py</code></td></tr>
+          <tr><td>Horn clauses, facts &amp; rules</td><td><code>fact</code>, <code>rule … :- … .</code></td><td><code>logic.py</code></td></tr>
+          <tr><td>Unification (with occurs check)</td><td>matching a goal against a rule head</td><td><code>unify()</code></td></tr>
+          <tr><td>SLD resolution &amp; backtracking</td><td><code>query … ?</code> finds <em>all</em> answers</td><td><code>KnowledgeBase.solve()</code></td></tr>
+        </tbody>
+      </table>
+      <div class="callout"><p><strong>What makes Lumi special:</strong> most toy languages are
+        <em>either</em> functional <em>or</em> logic. Lumi has a bridge between them. The expression
+        <code>solve …</code> runs a logic query and gives back an ordinary list, so you can
+        <code>map</code>, <code>filter</code> and <code>fold</code> over the answers.</p></div>
+    </section>
+
+    <!-- ============================================================ 2 -->
+    <section id="tour">
+      <h2>2. Language tour</h2>
+      <p>Every snippet below is real. The right-hand column is what Lumi prints.
+        All of them are in the <code>examples/</code> folder.</p>
+
+      <h3>2.1 Values, <code>let</code> and functions</h3>
+      <div class="pair">
+        <div><div class="label">Code</div><pre><code class="lumi">let x = 10
+print (x / 3)          -- int / int: integer division
+print (10.0 / 4)
+print ("Hello, " ++ "Lumi!")
+
+let add a b = a + b    -- sugar for fn a => fn b => a + b
+let add10 = add 10     -- currying: partial application
+print (add10 5)
+print (3, 'hello)      -- a tuple holding an atom</code></pre></div>
+        <div><div class="label">Output</div><pre class="out"><code>3
+2.5
+Hello, Lumi!
+
+15
+(3, hello)</code></pre></div>
+      </div>
+
+      <h3>2.2 Recursion and pattern matching</h3>
+      <div class="pair">
+        <div><div class="label">Code</div><pre><code class="lumi">let rec fib n = match n with
+  | 0 -> 0
+  | 1 -> 1
+  | _ -> fib (n - 1) + fib (n - 2)
+print (fib 15)
+
+-- tail recursive: runs in constant stack space
+let rec sumTo n acc =
+  if n == 0 then acc else sumTo (n - 1) (acc + n)
+print (sumTo 100000 0)</code></pre></div>
+        <div><div class="label">Output</div><pre class="out"><code>610
+
+
+
+5000050000</code></pre></div>
+      </div>
+
+      <h3>2.3 Lists and higher-order functions</h3>
+      <div class="pair">
+        <div><div class="label">Code</div><pre><code class="lumi">let rec quicksort xs = match xs with
+  | [] -> []
+  | pivot :: rest ->
+      quicksort (filter (fn x => x < pivot) rest)
+        ++ [pivot]
+        ++ quicksort (filter (fn x => x >= pivot) rest)
+print (quicksort [5, 3, 8, 1, 9, 2, 7])
+
+range 1 11
+  |> filter (fn x => x % 2 == 1)
+  |> map (fn x => x * 10)
+  |> print</code></pre></div>
+        <div><div class="label">Output</div><pre class="out"><code>[1, 2, 3, 5, 7, 8, 9]
+
+
+
+
+[10, 30, 50, 70, 90]</code></pre></div>
+      </div>
+
+      <h3>2.4 Logic programming: facts, rules, queries</h3>
+      <p><strong>Uppercase</strong> names (<code>X</code>, <code>Who</code>) are logic variables.
+        <strong>lowercase</strong> names (<code>tom</code>) are atoms. A fact ends with <code>.</code>,
+        and a query ends with <code>?</code>.</p>
+      <div class="pair">
+        <div><div class="label">Code</div><pre><code class="lumi">fact parent(tom, bob).
+fact parent(tom, liz).
+fact parent(bob, ann).
+fact parent(bob, pat).
+
+rule grandparent(X, Z) :- parent(X, Y), parent(Y, Z).
+rule sibling(X, Y) :- parent(P, X), parent(P, Y), X \= Y.
+
+query grandparent(tom, Who)?
+query sibling(ann, S)?
+query parent(liz, bob)?</code></pre></div>
+        <div><div class="label">Output</div><pre class="out"><code>
+
+
+
+
+
+Who = ann
+Who = pat
+S = pat
+false.</code></pre></div>
+      </div>
+
+      <h3>2.5 Lists and arithmetic in logic</h3>
+      <div class="pair">
+        <div><div class="label">Code</div><pre><code class="lumi">fact append([], L, L).
+rule append([H|T], L, [H|R]) :- append(T, L, R).
+query append(X, Y, [1, 2])?    -- run it "backwards"!
+
+fact factorial(0, 1).
+rule factorial(N, F) :-
+    N > 0, N1 is N - 1, factorial(N1, F1), F is N * F1.
+query factorial(10, F)?</code></pre></div>
+        <div><div class="label">Output</div><pre class="out"><code>
+X = [], Y = [1, 2]
+X = [1], Y = [2]
+X = [1, 2], Y = []
+
+
+F = 3628800</code></pre></div>
+      </div>
+
+      <h3>2.6 The bridge: logic answers as functional data</h3>
+      <p><code>solve</code> returns a <em>list of records</em>, one per answer. You read a
+        variable's value with <code>record.Var</code>.</p>
+      <div class="pair">
+        <div><div class="label">Code</div><pre><code class="lumi">fact likes(alice, pizza).
+fact likes(bob, pizza).
+fact likes(carol, tacos).
+fact price(pizza, 12).
+fact price(tacos, 8).
+
+let meals = solve likes(Who, F), price(F, P)
+print (fold (fn acc r => acc + r.P) 0 meals)
+print (meals |> map (fn r => r.Who))</code></pre></div>
+        <div><div class="label">Output</div><pre class="out"><code>
+
+
+
+
+
+
+32
+[alice, bob, carol]</code></pre></div>
+      </div>
+
+      <h3>2.7 Layout rule (important!)</h3>
+      <div class="callout"><p>A new statement starts on a <strong>new line at column 1</strong>.
+        To continue a statement on the next line, <strong>indent</strong> that line. Use
+        <code>;</code> to put two statements on one line. Facts, rules and queries end themselves
+        with <code>.</code> / <code>?</code>, so several can share one line.</p></div>
+    </section>
+
+    <!-- ============================================================ 3 -->
+    <section id="architecture">
+      <h2>3. Architecture</h2>
+      <p>Lumi is a classic <strong>tree-walking interpreter</strong>. Source code passes through
+        a pipeline. Each stage is one Python module, and you can inspect it with a command-line flag.</p>
+      <figure>
+        <svg class="diagram" viewBox="0 0 900 250" role="img" aria-label="Pipeline: source to lexer to parser to evaluator and logic engine">
+          <defs>
+            <marker id="arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+              <path d="M0,0 L10,5 L0,10 z" fill="currentColor" style="color: var(--muted)"></path>
+            </marker>
+          </defs>
+          <rect class="box" x="10" y="80" width="120" height="64" rx="10"></rect>
+          <text x="70" y="108" text-anchor="middle" font-weight="700">Source</text>
+          <text x="70" y="128" text-anchor="middle" class="small">program.lumi</text>
+
+          <rect class="box" x="175" y="80" width="130" height="64" rx="10"></rect>
+          <text x="240" y="108" text-anchor="middle" font-weight="700">Lexer</text>
+          <text x="240" y="128" text-anchor="middle" class="small">lexer.py</text>
+
+          <rect class="box" x="350" y="80" width="130" height="64" rx="10"></rect>
+          <text x="415" y="108" text-anchor="middle" font-weight="700">Parser</text>
+          <text x="415" y="128" text-anchor="middle" class="small">parser.py</text>
+
+          <rect class="fnbox" x="560" y="20" width="170" height="64" rx="10"></rect>
+          <text x="645" y="48" text-anchor="middle" font-weight="700">Evaluator</text>
+          <text x="645" y="68" text-anchor="middle" class="small">evaluator.py · builtins.py</text>
+
+          <rect class="lgbox" x="560" y="146" width="170" height="64" rx="10"></rect>
+          <text x="645" y="174" text-anchor="middle" font-weight="700">Logic engine</text>
+          <text x="645" y="194" text-anchor="middle" class="small">logic.py</text>
+
+          <rect class="box" x="775" y="80" width="115" height="64" rx="10"></rect>
+          <text x="832" y="108" text-anchor="middle" font-weight="700">Output</text>
+          <text x="832" y="128" text-anchor="middle" class="small">values.py</text>
+
+          <path class="edge" d="M130,112 L172,112" marker-end="url(#arr)"></path>
+          <text x="152" y="102" text-anchor="middle" class="small">text</text>
+          <path class="edge" d="M305,112 L347,112" marker-end="url(#arr)"></path>
+          <text x="326" y="102" text-anchor="middle" class="small">tokens</text>
+          <path class="edge" d="M480,112 C520,112 520,52 557,52" marker-end="url(#arr)"></path>
+          <path class="edge" d="M480,112 C520,112 520,178 557,178" marker-end="url(#arr)"></path>
+          <text x="512" y="104" text-anchor="middle" class="small">AST</text>
+          <path class="edge" d="M645,84 L645,143" marker-end="url(#arr)" stroke-dasharray="5 4"></path>
+          <text x="652" y="118" class="small">solve</text>
+          <path class="edge" d="M730,52 C760,52 750,112 772,112" marker-end="url(#arr)"></path>
+          <path class="edge" d="M730,178 C760,178 750,112 772,112" marker-end="url(#arr)"></path>
+          <text x="415" y="236" text-anchor="middle" class="small">--tokens shows the lexer output · --ast shows the parser output</text>
+        </svg>
+        <figcaption>The pipeline. Functional statements go to the evaluator, while <code>fact</code>/<code>rule</code>/<code>query</code> go to the logic engine. The dashed arrow is the <code>solve</code> bridge.</figcaption>
+      </figure>
+
+      <pre><code>$ python -m lumi prog.lumi --tokens       $ python -m lumi prog.lumi --ast
+1:1   LET     'let'                       LetStmt
+1:5   IDENT   'x'                           name: 'x'
+1:7   EQ      '='                           value:
+1:9   INT     '1'                             BinOp  op: '+'
+1:11  PLUS    '+'                               left:  Lit 1
+1:13  INT     '2'                               right: BinOp op: '*' (Lit 2, Lit 3)
+1:15  STAR    '*'
+1:17  INT     '3'</code></pre>
+
+      <h3>Modules</h3>
+      <div class="cards">
+        <div class="card"><h4>Tokens</h4><div class="file">lumi/tokens.py</div><p>The list of token types, the keywords and the operator symbols.</p></div>
+        <div class="card"><h4>Lexer</h4><div class="file">lumi/lexer.py</div><p>Reads characters and produces tokens with line and column. Skips <code>--</code> comments.</p></div>
+        <div class="card"><h4>Syntax (AST)</h4><div class="file">lumi/syntax.py</div><p>Dataclasses for every node: <code>Lambda</code>, <code>App</code>, <code>Match</code>, <code>FactStmt</code>, …</p></div>
+        <div class="card"><h4>Parser</h4><div class="file">lumi/parser.py</div><p>Recursive descent, with precedence climbing for operators. It parses logic terms too.</p></div>
+        <div class="card"><h4>Evaluator</h4><div class="file">lumi/evaluator.py</div><p>Environments, closures, pattern matching and tail calls. Runs each statement.</p></div>
+        <div class="card"><h4>Logic engine</h4><div class="file">lumi/logic.py</div><p>Terms, <code>unify()</code>, a knowledge base, and <code>solve()</code> as a backtracking generator.</p></div>
+        <div class="card"><h4>Values &amp; builtins</h4><div class="file">lumi/values.py · builtins.py</div><p>How values are represented and printed. <code>print</code>, <code>map</code>, <code>fold</code>, …</p></div>
+        <div class="card"><h4>CLI &amp; REPL</h4><div class="file">lumi/__main__.py · repl.py</div><p>Runs files, debug flags, and an interactive prompt with multi-line input.</p></div>
+      </div>
+    </section>
+
+    <!-- ============================================================ 4 -->
+    <section id="grammar">
+      <h2>4. Grammar</h2>
+      <p>This is the grammar in EBNF. <code>{ x }</code> means zero or more and <code>[ x ]</code> means
+        optional. Each rule matches a <code>parse_…</code> method in <code>parser.py</code>.</p>
+<pre><code>program    = { statement } ;
+statement  = "let" ["rec"] name {param} "=" expr          (* global definition *)
+           | "fact"  term "."
+           | "rule"  term ":-" goals "."
+           | "query" goals "?"
+           | expr ;
+
+(* ---------- functional part, lowest precedence first ---------- *)
+expr       = binary ;
+binary     = unary { binop unary } ;               (* precedence climbing *)
+binop      = "|>"                                  (* 1, lowest  *)
+           | "||" | "&amp;&amp;"                           (* 2, 3       *)
+           | "==" | "!=" | "&lt;" | "&gt;" | "&lt;=" | "&gt;="     (* 4          *)
+           | "::" | "++"                           (* 5, right associative *)
+           | "+"  | "-"                            (* 6          *)
+           | "*"  | "/"  | "%" ;                   (* 7, highest *)
+unary      = "-" unary | application ;
+application= keyword_expr | postfix { postfix } ;  (* f x y = (f x) y *)
+postfix    = atom { "." Name } ;                   (* record.Field *)
+atom       = INT | FLOAT | STRING | "true" | "false" | "'" atom_name | name
+           | "(" ")" | "(" expr ")" | "(" expr "," expr {"," expr} ")"
+           | "[" [ expr {"," expr} ] "]" ;
+keyword_expr = "fn" param {param} "=&gt;" expr
+           | "if" expr "then" expr "else" expr
+           | "match" expr "with" ["|"] arm { "|" arm }
+           | "let" ["rec"] name {param} "=" expr "in" expr
+           | "solve" goals ;
+arm        = pattern "-&gt;" expr ;
+pattern    = pattern_atom [ "::" pattern ] ;
+pattern_atom = "_" | name | literal | "[" "]" | "[" pattern {"," pattern} "]"
+           | "(" pattern {"," pattern} ")" ;
+
+(* ---------- logic part ---------- *)
+goals      = goal { "," goal } ;
+goal       = term [ relop term ] ;
+relop      = "=" | "\=" | "is" | "&lt;" | "&gt;" | "&lt;=" | "&gt;=" | "==" | "!=" ;
+term       = mul_term { ("+" | "-") mul_term } ;
+mul_term   = primary  { ("*" | "/" | "%") primary } ;
+primary    = Variable | "_" | number | STRING
+           | atom_name [ "(" term {"," term} ")" ]
+           | "[" "]" | "[" term {"," term} [ "|" term ] "]"
+           | "(" term ")" ;</code></pre>
+      <p>Built-in functions: <code>print str length head tail empty map filter fold range reverse sum not max min</code>.<br>
+        Built-in goals: <code>true fail = \= is &lt; &gt; &lt;= &gt;= == !=</code>.</p>
+    </section>
+
+    <!-- ============================================================ 5 -->
+    <section id="inside">
+      <h2>5. How it works inside</h2>
+
+      <h3>5.1 Environments and closures</h3>
+      <p>An <strong>environment</strong> (<code>Env</code>) is a dictionary of names plus a pointer
+        to the enclosing environment. A <strong>closure</strong> is a function together with the
+        environment it was created in. That's why <code>add10</code> still remembers <code>a = 10</code>
+        after <code>add</code> has returned.</p>
+<pre><code class="lumi">let make n = fn x => x + n     -- the inner fn captures n
+let add5 = make 5              -- Closure(param=x, body=x + n, env={n: 5})
+print (add5 10)                -- 15</code></pre>
+
+      <h3>5.2 Tail calls</h3>
+      <p>The evaluator is a <code>while True</code> loop. When an expression is in
+        <em>tail position</em> (an <code>if</code> branch, a <code>match</code> arm, a <code>let</code>
+        body, or a function body), it doesn't call itself recursively. It replaces
+        <code>(expression, environment)</code> and goes around the loop again. So
+        <code>sumTo 100000 0</code> uses no extra Python stack.</p>
+
+      <h3>5.3 Pattern matching</h3>
+      <p><code>match_pattern(pattern, value)</code> returns a dictionary of new bindings, or
+        <code>None</code> when the pattern doesn't match. The first arm that matches wins.</p>
+      <table>
+        <thead><tr><th>Pattern</th><th>Value</th><th>Result</th></tr></thead>
+        <tbody>
+          <tr><td><code>h :: t</code></td><td><code>[1, 2, 3]</code></td><td class="ok">{h: 1, t: [2, 3]}</td></tr>
+          <tr><td><code>[]</code></td><td><code>[1]</code></td><td class="bad">None (no match)</td></tr>
+          <tr><td><code>(a, _)</code></td><td><code>(7, "x")</code></td><td class="ok">{a: 7}</td></tr>
+        </tbody>
+      </table>
+
+      <h3>5.4 Unification, step by step</h3>
+      <p>Unification is "two-way pattern matching": variables can appear on <em>both</em> sides.
+        Here's how Lumi unifies the goal <code>append([1, 2], [3, 4], X)</code> with the rule head
+        <code>append([H|T], L, [H|R])</code> (after renaming the rule's variables):</p>
+      <table>
+        <thead><tr><th>#</th><th>Unify</th><th>Action</th><th>Substitution so far</th></tr></thead>
+        <tbody>
+          <tr><td>1</td><td><code>append(…) = append(…)</code></td><td>same name and arity, so unify the arguments pairwise</td><td>{ }</td></tr>
+          <tr><td>2</td><td><code>[H|T] = [1, 2]</code></td><td>both are lists, so unify head and tail</td><td>{ }</td></tr>
+          <tr><td>3</td><td><code>H = 1</code></td><td>H is a free variable, so bind it</td><td>{H↦1}</td></tr>
+          <tr><td>4</td><td><code>T = [2]</code></td><td>bind</td><td>{H↦1, T↦[2]}</td></tr>
+          <tr><td>5</td><td><code>L = [3, 4]</code></td><td>bind</td><td>{…, L↦[3,4]}</td></tr>
+          <tr><td>6</td><td><code>[H|R] = X</code></td><td>X is free, so bind it to the whole term. The occurs check passes.</td><td>{…, X↦[H|R]}</td></tr>
+        </tbody>
+      </table>
+      <p>The new goal is the rule body <code>append(T, L, R)</code> = <code>append([2], [3,4], R)</code>.
+        The process repeats until the goal list is empty, which gives <code>X = [1, 2, 3, 4]</code>.</p>
+      <div class="callout"><p><strong>Occurs check:</strong> <code>X = f(X)</code> must fail.
+        Otherwise X would be an infinite term. Many real Prologs skip this check for speed. Lumi does
+        it because it is correct and easy to explain.</p></div>
+
+      <h3>5.5 Backtracking: the search tree</h3>
+      <p><code>solve()</code> is a Python <strong>generator</strong>. For each goal it tries every
+        matching clause in order and <code>yield</code>s each successful substitution. When a branch
+        fails, the <code>for</code> loop simply moves on to the next clause. Generators give us
+        backtracking for free.</p>
+      <figure>
+        <svg class="diagram" viewBox="0 0 860 330" role="img" aria-label="Search tree for grandparent(tom, Who)">
+          <rect class="box" x="290" y="10" width="280" height="40" rx="8"></rect>
+          <text x="430" y="35" text-anchor="middle" class="mono">?- grandparent(tom, Who)</text>
+          <path class="edge" d="M430,50 L430,80"></path>
+          <rect class="box" x="235" y="80" width="390" height="40" rx="8"></rect>
+          <text x="430" y="105" text-anchor="middle" class="mono">parent(tom, Y), parent(Y, Who)</text>
+          <path class="edge" d="M380,120 L220,170"></path>
+          <path class="edge" d="M480,120 L640,170"></path>
+          <text x="275" y="150" class="small">Y = bob</text>
+          <text x="565" y="150" class="small">Y = liz</text>
+          <rect class="box" x="110" y="170" width="220" height="40" rx="8"></rect>
+          <text x="220" y="195" text-anchor="middle" class="mono">parent(bob, Who)</text>
+          <rect class="box" x="530" y="170" width="220" height="40" rx="8"></rect>
+          <text x="640" y="195" text-anchor="middle" class="mono">parent(liz, Who)</text>
+          <path class="edge" d="M180,210 L110,260"></path>
+          <path class="edge" d="M260,210 L330,260"></path>
+          <path class="edge" d="M640,210 L640,260"></path>
+          <text x="105" y="240" class="small">Who = ann</text>
+          <text x="300" y="240" class="small">Who = pat</text>
+          <text x="110" y="285" text-anchor="middle" class="ok">✓ Who = ann</text>
+          <text x="330" y="285" text-anchor="middle" class="ok">✓ Who = pat</text>
+          <text x="640" y="285" text-anchor="middle" class="bad">✗ no clause matches, so backtrack</text>
+          <text x="430" y="320" text-anchor="middle" class="small">depth-first, left to right, the same order as Prolog</text>
+        </svg>
+        <figcaption>Search tree for <code>query grandparent(tom, Who)?</code> using the family from <code>examples/04_family_logic.lumi</code>.</figcaption>
+      </figure>
+<pre><code>def solve(self, goals, s):
+    if not goals:
+        yield s                                   # every goal proved: one answer
+        return
+    goal, rest = goals[0], goals[1:]
+    for clause in self.clauses[goal.functor, arity]:
+        head, body = clause.renamed()             # fresh variables each time
+        s2 = unify(head, goal, s)
+        if s2 is not None:
+            yield from self.solve(body + rest, s2)  # failure: the loop continues = backtracking</code></pre>
+
+      <h3>5.6 The <code>solve</code> bridge</h3>
+      <p><code>solve goals</code> collects every answer substitution. It turns each one into a
+        <code>Record</code> such as <code>{Who: alice, F: pizza, P: 12}</code>, converts logic lists into
+        Lumi lists, and returns a plain list. After that it is ordinary functional data.</p>
+    </section>
+
+    <!-- ============================================================ 6 -->
+    <section id="running">
+      <h2>6. Running it</h2>
+<pre><code>pip install -e ".[dev]"                       # once: installs `lumi` + pytest
+python -m lumi examples/04_family_logic.lumi  # run a program
+python -m lumi                                # start the REPL
+python -m pytest -q                           # run all tests</code></pre>
+      <h3>REPL session</h3>
+<pre><code>Lumi 0.1.0 - functional + logic. Type :help for help.
+lumi&gt; let sq x = x * x
+sq = &lt;fn sq&gt;
+lumi&gt; sq 12
+144
+lumi&gt; fact p(1). fact p(2).
+lumi&gt; query p(X)?
+X = 1
+X = 2
+lumi&gt; :quit</code></pre>
+      <h3>Friendly errors</h3>
+<pre><code>prog.lumi:2:10: Runtime error: '+' needs two numbers, got int and string (use ++ to join strings or lists)
+    print (x + "a")
+             ^
+prog.lumi:1:8: Runtime error: unknown name 'mapp' (did you mean 'map'?)</code></pre>
+    </section>
+
+    <!-- ============================================================ 7 -->
+    <section id="roadmap">
+      <h2>7. Roadmap &amp; team tasks</h2>
+      <p>Version 0.1 works end to end. Here are ideas for growing it. Write your name in an owner
+        slot, add a test first, then implement. The files column shows where to start.</p>
+      <table>
+        <thead><tr><th>Feature</th><th>Why it's interesting</th><th>Files</th><th>Level</th><th>Owner</th></tr></thead>
+        <tbody>
+          <tr><td><strong>Negation as failure</strong> <code>not(G)</code></td><td>The closed-world assumption, and why <code>not</code> is not logical negation</td><td>logic.py</td><td><span class="lvl e">easy</span></td><td><span class="owner"></span></td></tr>
+          <tr><td><strong>Cut</strong> <code>!</code></td><td>Pruning the search tree. Needs a way to stop the generator</td><td>logic.py, parser.py</td><td><span class="lvl m">medium</span></td><td><span class="owner"></span></td></tr>
+          <tr><td><strong>findall / bagof</strong></td><td>Collect answers inside the logic world</td><td>logic.py</td><td><span class="lvl e">easy</span></td><td><span class="owner"></span></td></tr>
+          <tr><td><strong>Functional values in queries</strong>, e.g. <code>solve parent(^name, C)</code></td><td>Completes the bridge in the other direction</td><td>parser.py, evaluator.py</td><td><span class="lvl m">medium</span></td><td><span class="owner"></span></td></tr>
+          <tr><td><strong>Type inference</strong> (Hindley–Milner)</td><td>The highlight of FP theory: infer <code>map : (a → b) → [a] → [b]</code></td><td>new typecheck.py</td><td><span class="lvl h">hard</span></td><td><span class="owner"></span></td></tr>
+          <tr><td><strong>User-defined data types</strong> <code>type shape = Circle n | Rect w h</code></td><td>Algebraic data types and exhaustive matching</td><td>parser.py, evaluator.py</td><td><span class="lvl m">medium</span></td><td><span class="owner"></span></td></tr>
+          <tr><td><strong>Standard library in Lumi</strong> (<code>prelude.lumi</code>)</td><td>Write <code>zip</code>, <code>take</code>, <code>sortBy</code> in Lumi itself</td><td>new lumi/prelude.lumi</td><td><span class="lvl e">easy</span></td><td><span class="owner"></span></td></tr>
+          <tr><td><strong>Lazy streams</strong></td><td>Infinite lists, and infinite answers from <code>solve</code></td><td>evaluator.py, logic.py</td><td><span class="lvl h">hard</span></td><td><span class="owner"></span></td></tr>
+          <tr><td><strong>Faster substitutions</strong></td><td>Swap the dict copy on every bind for a persistent map or a trail</td><td>logic.py</td><td><span class="lvl m">medium</span></td><td><span class="owner"></span></td></tr>
+          <tr><td><strong>Browser playground</strong></td><td>Run Lumi in a web page with Pyodide</td><td>new web/</td><td><span class="lvl m">medium</span></td><td><span class="owner"></span></td></tr>
+          <tr><td><strong>Syntax highlighting</strong> for VS Code</td><td>A TextMate grammar for <code>.lumi</code> files</td><td>new editor/</td><td><span class="lvl e">easy</span></td><td><span class="owner"></span></td></tr>
+        </tbody>
+      </table>
+      <h3>Known limitations (v0.1)</h3>
+      <ul>
+        <li>The language is dynamically typed. Type errors are found only at runtime.</li>
+        <li>Deep <em>non</em>-tail recursion is limited by the Python stack. The CLI raises the limit, so about 20,000 levels work.</li>
+        <li><code>solve</code> collects all answers eagerly, so it can't handle infinitely many answers.</li>
+        <li>Matching <code>h :: t</code> copies the tail, so list recursion is O(n²). That's fine for class-sized data.</li>
+      </ul>
+    </section>
+
+    <!-- ============================================================ 8 -->
+    <section id="glossary">
+      <h2>8. Glossary</h2>
+      <dl class="gloss">
+        <dt>Token</dt><dd>The smallest meaningful piece of source code: a keyword, a name, a number or an operator.</dd>
+        <dt>AST (abstract syntax tree)</dt><dd>The program as a tree of nodes, with spacing and parentheses removed.</dd>
+        <dt>Closure</dt><dd>A function value plus the environment it was created in.</dd>
+        <dt>Currying</dt><dd>A function of two arguments is really a function that returns a function, so <code>add 1</code> is a valid value.</dd>
+        <dt>Tail call</dt><dd>A call that is the very last thing a function does. It can reuse the current stack frame.</dd>
+        <dt>Atom</dt><dd>A symbolic constant like <code>tom</code> (logic) or <code>'tom</code> (functional code).</dd>
+        <dt>Horn clause</dt><dd>A rule of the form <code>head :- goal1, goal2.</code> A fact is a Horn clause with an empty body.</dd>
+        <dt>Substitution</dt><dd>A mapping from logic variables to terms, such as <code>{X ↦ bob}</code>.</dd>
+        <dt>Unification</dt><dd>Finding a substitution that makes two terms identical.</dd>
+        <dt>Occurs check</dt><dd>Refusing to bind <code>X</code> to a term that contains <code>X</code>.</dd>
+        <dt>SLD resolution</dt><dd>Prolog's proof strategy: pick the leftmost goal, resolve it with a clause, and repeat.</dd>
+        <dt>Backtracking</dt><dd>When a branch fails, going back to the last choice point and trying the next alternative.</dd>
+      </dl>
+    </section>
+  </main>
+</div>
+
+<script>
+  // Tiny syntax highlighter for Lumi code blocks.
+  (function () {
+    const KW = new Set("let rec in fn if then else match with true false fact rule query solve is".split(" "));
+    const esc = s => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+    const re = /(--[^\n]*)|("(?:[^"\\]|\\.)*")|('[a-z][\w']*)|(\b\d+(?:\.\d+)?\b)|(\b[A-Z_][\w']*\b)|(\b[a-z][\w']*\b)/g;
+    document.querySelectorAll("code.lumi").forEach(el => {
+      const src = el.textContent;
+      let out = "", last = 0, m;
+      while ((m = re.exec(src))) {
+        out += esc(src.slice(last, m.index));
+        const [t] = m;
+        if (m[1]) out += `<span class="com">${esc(t)}</span>`;
+        else if (m[2]) out += `<span class="str">${esc(t)}</span>`;
+        else if (m[3]) out += `<span class="at">${esc(t)}</span>`;
+        else if (m[4]) out += `<span class="num">${t}</span>`;
+        else if (m[5]) out += `<span class="lv">${t}</span>`;
+        else out += KW.has(t) ? `<span class="kw">${t}</span>` : t;
+        last = re.lastIndex;
+      }
+      el.innerHTML = out + esc(src.slice(last));
+    });
+    // Highlight the current section in the sidebar.
+    const links = [...document.querySelectorAll("#toc a")];
+    const obs = new IntersectionObserver(entries => {
+      entries.forEach(e => {
+        if (e.isIntersecting) {
+          links.forEach(a => a.classList.toggle("active", a.getAttribute("href") === "#" + e.target.id));
+        }
+      });
+    }, { rootMargin: "-20% 0px -70% 0px" });
+    document.querySelectorAll("main section").forEach(s => obs.observe(s));
+  })();
+</script>
+</body>
+</html>

@@ -1,0 +1,29 @@
+-- 01_basics.lumi : values, let, functions, if
+-- Run with:  python -m lumi examples/01_basics.lumi
+
+let x = 10
+let y = 3
+print (x + y)
+print (x / y)            -- int / int is integer division: 3
+print (10.0 / 4)         -- with a float you get 2.5
+print (x % y)
+
+let greeting = "Hello, " ++ "Lumi!"
+print greeting
+
+let square = fn n => n * n
+let add a b = a + b      -- same as:  let add = fn a => fn b => a + b
+print (square 7)
+print (add 2 3)
+
+let add10 = add 10       -- partial application (currying)
+print (add10 5)
+
+let sign n = if n < 0 then "negative" else if n == 0 then "zero" else "positive"
+print (sign (-5))
+print (sign 0)
+print (sign 42)
+
+let point = (3, 4)
+print point
+print 'hello             -- an atom: a symbolic constant

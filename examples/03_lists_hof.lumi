@@ -1,0 +1,40 @@
+-- 03_lists_hof.lumi : lists and higher-order functions
+
+let nums = [1, 2, 3, 4, 5]
+print nums
+print (0 :: nums)        -- cons: put an item in front
+print (nums ++ [6, 7])   -- concatenate
+print (head nums)
+print (tail nums)
+print (length nums)
+
+-- our own map, written with pattern matching
+let rec myMap f xs = match xs with
+  | []     -> []
+  | h :: t -> f h :: myMap f t
+print (myMap (fn x => x * x) nums)
+
+-- built-in higher-order functions
+print (filter (fn x => x % 2 == 0) nums)
+print (fold (fn acc x => acc + x) 0 nums)
+
+-- the pipe operator:  x |> f  means  f x
+range 1 11
+  |> filter (fn x => x % 2 == 1)
+  |> map (fn x => x * 10)
+  |> print
+
+-- quicksort in five lines
+let rec quicksort xs = match xs with
+  | [] -> []
+  | pivot :: rest ->
+      quicksort (filter (fn x => x < pivot) rest)
+        ++ [pivot]
+        ++ quicksort (filter (fn x => x >= pivot) rest)
+print (quicksort [5, 3, 8, 1, 9, 2, 7])
+
+-- functions that build functions
+let compose f g = fn x => f (g x)
+let inc x = x + 1
+let double x = x * 2
+print ((compose inc double) 5)

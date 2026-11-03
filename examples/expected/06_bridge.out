@@ -1,0 +1,7 @@
+[{Food: pizza}, {Food: sushi}]
+2
+[pizza, sushi]
+52
+[(alice, pizza), (bob, pizza), (carol, tacos)]
+[alice, bob]
+true

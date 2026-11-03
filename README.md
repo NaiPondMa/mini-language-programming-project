@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 # Lumi: a tiny functional + logic programming language
 
 Lumi is a small language we built for our **Logic & Functional Programming** class.
@@ -66,3 +67,6 @@ python -m lumi examples/01_basics.lumi --ast      # parser output
 3. If you add an example, also add its golden output:
    `python -m lumi examples/NAME.lumi > examples/expected/NAME.out`
 4. Run `python -m pytest -q` before you push.
+=======
+# mini-language-programming-project
+>>>>>>> bdfde563a5054a40760344631e5ad7ee6fcab24e
